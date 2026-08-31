@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Accesso remoto</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --fg:#16181d; --muted:#666b74;
+    --line:#e3e6ea; --ok:#0f7a3d; --okbg:#e8f6ed; --bad:#a3242b; --badbg:#fbeaea;
+    --wait:#7a5a0f; --waitbg:#fdf4e3; --accent:#1f5fd0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14161a; --card:#1c1f25; --fg:#e8eaed; --muted:#9aa0a8;
+      --line:#2c313a; --ok:#59d98c; --okbg:#16301f; --bad:#ff8a8a; --badbg:#331a1c;
+      --wait:#e8c46a; --waitbg:#332a14; --accent:#7aa5f0;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--fg);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .wrap{width:100%; max-width:520px}
+  h1{font-size:18px; margin:0 0 4px; font-weight:600; letter-spacing:-.01em}
+  .sub{color:var(--muted); font-size:13px; margin:0 0 20px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; gap:14px;
+    text-decoration:none; color:inherit; transition:border-color .15s;
+  }
+  .card:hover{border-color:var(--accent)}
+  .card .info{flex:1; min-width:0}
+  .card .name{font-weight:600; font-size:14px}
+  .card .host{color:var(--muted); font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+               overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .badge{
+    font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px;
+    white-space:nowrap; letter-spacing:.02em;
+  }
+  .b-wait{color:var(--wait); background:var(--waitbg)}
+  .b-ok{color:var(--ok); background:var(--okbg)}
+  .b-bad{color:var(--bad); background:var(--badbg)}
+  .foot{margin-top:16px; font-size:12px; color:var(--muted); min-height:20px}
+  .foot b{color:var(--fg); font-weight:600}
+  button{
+    font:inherit; font-size:12px; color:var(--accent); background:none;
+    border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; margin-left:6px;
+  }
+  button:hover{border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Accesso remoto</h1>
+  <p class="sub">Verifico quale gateway risponde e ti porto su quello.</p>
+  <div id="list"></div>
+  <div class="foot" id="foot">Controllo in corso…</div>
+</div>
+
+<script>
+// I due gateway, in ordine di preferenza.
+var TARGETS = [
+  { name: "Oracle Cloud",  url: "https://oracle-bridge.tail0e7ff3.ts.net" },
+  { name: "Casa (hacasa)", url: "https://hacasa-guac.tail0e7ff3.ts.net"  }
+];
+var PROBE = "/images/logo-64.png";   // risorsa statica di Guacamole, risponde 200
+var TIMEOUT = 7000;
+var GRACE = 3000;                    // attesa prima del redirect, per poter annullare
+
+var listEl = document.getElementById("list");
+var footEl = document.getElementById("foot");
+var cancelled = false, redirected = false;
+
+TARGETS.forEach(function (t, i) {
+  var a = document.createElement("a");
+  a.className = "card";
+  a.href = t.url;
+  a.rel = "noreferrer";
+  a.innerHTML =
+    '<div class="info"><div class="name"></div><div class="host"></div></div>' +
+    '<span class="badge b-wait">verifico…</span>';
+  a.querySelector(".name").textContent = t.name;
+  a.querySelector(".host").textContent = t.url.replace(/^https:\/\//, "");
+  listEl.appendChild(a);
+  t.el = a;
+  t.badge = a.querySelector(".badge");
+});
+
+// Sonda: carico un'immagine dal gateway. Se si carica, il servizio risponde.
+// Uso Image invece di fetch per non dipendere dagli header CORS.
+function probe(t) {
+  return new Promise(function (resolve) {
+    var img = new Image();
+    var done = false;
+    function settle(ok) {
+      if (done) return;
+      done = true;
+      img.onload = img.onerror = null;
+      t.up = ok;
+      t.badge.className = "badge " + (ok ? "b-ok" : "b-bad");
+      t.badge.textContent = ok ? "raggiungibile" : "non risponde";
+      resolve(ok);
+    }
+    img.onload = function () { settle(true); };
+    img.onerror = function () { settle(false); };
+    setTimeout(function () { settle(false); }, TIMEOUT);
+    img.src = t.url + PROBE + "?t=" + Date.now();
+  });
+}
+
+function go(t) {
+  if (cancelled || redirected) return;
+  redirected = true;
+  footEl.innerHTML = "";
+  footEl.append("Apro ", Object.assign(document.createElement("b"), { textContent: t.name }), "…");
+  location.replace(t.url);
+}
+
+Promise.all(TARGETS.map(probe)).then(function () {
+  var target = TARGETS.find(function (t) { return t.up; });
+
+  if (!target) {
+    footEl.textContent = "Nessun gateway raggiungibile. Controlla la connessione, oppure prova a cliccare comunque un indirizzo.";
+    return;
+  }
+
+  var others = TARGETS.filter(function (t) { return t !== target && t.up; }).length;
+  var secs = Math.round(GRACE / 1000);
+
+  footEl.innerHTML = "";
+  footEl.append(
+    "Apro ",
+    Object.assign(document.createElement("b"), { textContent: target.name }),
+    " tra " + secs + "s" + (others ? " (anche l'altro è disponibile)" : "") + " "
+  );
+  var btn = document.createElement("button");
+  btn.textContent = "annulla";
+  btn.onclick = function () {
+    cancelled = true;
+    footEl.textContent = "Annullato — scegli tu l'indirizzo qui sopra.";
+  };
+  footEl.appendChild(btn);
+
+  var t0 = Date.now();
+  var tick = setInterval(function () {
+    if (cancelled || redirected) { clearInterval(tick); return; }
+    var left = Math.ceil((GRACE - (Date.now() - t0)) / 1000);
+    if (left <= 0) { clearInterval(tick); go(target); return; }
+    footEl.firstChild.nextSibling.nextSibling.textContent =
+      " tra " + left + "s" + (others ? " (anche l'altro è disponibile)" : "") + " ";
+  }, 250);
+});
+</script>
+</body>
+</html>
