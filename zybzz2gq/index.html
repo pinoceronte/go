@@ -63,9 +63,12 @@
 
 <script>
 // I due gateway, in ordine di preferenza.
+// Casa e' PRIMA di Oracle: la VM di casa non condivide CPU con nulla, mentre
+// Oracle ha 2 soli core occupati dagli undici registratori della pipeline poly
+// e sotto carico il suo Guacamole diventa inservibile (misurato il 01/09).
 var TARGETS = [
-  { name: "Oracle Cloud",  url: "https://oracle-bridge.tail0e7ff3.ts.net" },
-  { name: "Casa (hacasa)", url: "https://hacasa-guac.tail0e7ff3.ts.net"  }
+  { name: "Casa (hacasa)", url: "https://hacasa-guac.tail0e7ff3.ts.net"  },
+  { name: "Oracle Cloud",  url: "https://oracle-bridge.tail0e7ff3.ts.net" }
 ];
 var PROBE = "/images/logo-64.png";   // risorsa statica di Guacamole, risponde 200
 var TIMEOUT = 7000;
