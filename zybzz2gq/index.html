@@ -62,18 +62,26 @@
 </div>
 
 <script>
-// I due gateway, in ordine di preferenza.
-// Oracle e' PRIMO: sta fuori casa, quindi risponde anche se qui manca corrente
-// o linea - ed e' proprio quello il caso in cui serve entrare da remoto.
+// I due gateway, in ordine di preferenza. PORTCASA e' il PRIMARIO dal
+// 01/09/2026, per decisione di Piero.
 //
-// La riserva dal 01/09/2026 gira su PORTCASA, non piu' su hacasa-server.
-// L'hostname resta 'hacasa-guac' e NON e' un errore: il nodo Tailscale e' la
-// VM, non la macchina che la ospita, quindi spostando il disco si e' spostato
-// anche il Funnel. Rinominarlo costerebbe un certificato nuovo e una modifica
-// qui, per zero guadagno.
+// Perche' portcasa prima: 8 core i7 e 32 GB tutti suoi, ed e' la macchina a
+// cui Piero accede normalmente da fuori. Oracle ha 2 soli core condivisi con
+// gli undici registratori della pipeline poly e sotto carico il suo Guacamole
+// diventa inservibile (misurato il 01/09).
+//
+// Il contro, che resta vero: Oracle sta fuori casa, quindi risponde anche
+// quando a casa manca corrente o linea. E' per questo che resta la riserva e
+// non e' stato tolto: la sonda a due soglie qui sotto scarta portcasa in 2
+// secondi e passa a Oracle da sola.
+//
+// L'hostname 'hacasa-guac' NON e' un errore anche se la VM vive su portcasa:
+// il nodo Tailscale e' la VM, non la macchina che la ospita, quindi spostando
+// il disco si e' spostato anche il Funnel. Rinominarlo vuol dire nuovo
+// certificato e nuova modifica qui.
 var TARGETS = [
-  { name: "Oracle Cloud", url: "https://oracle-bridge.tail0e7ff3.ts.net" },
-  { name: "Portcasa",     url: "https://hacasa-guac.tail0e7ff3.ts.net"  }
+  { name: "Portcasa",     url: "https://hacasa-guac.tail0e7ff3.ts.net"  },
+  { name: "Oracle Cloud", url: "https://oracle-bridge.tail0e7ff3.ts.net" }
 ];
 var PROBE = "/images/logo-64.png";   // risorsa statica di Guacamole, risponde 200
 
