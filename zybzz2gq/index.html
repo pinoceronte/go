@@ -71,14 +71,27 @@ var TARGETS = [
   { name: "Casa (hacasa)", url: "https://hacasa-guac.tail0e7ff3.ts.net"  }
 ];
 var PROBE = "/images/logo-64.png";   // risorsa statica di Guacamole, risponde 200
-var TIMEOUT = 7000;
+
+// Due soglie, non una. Il guasto che ho visto il 01/09 non e' "Oracle morta"
+// ma "Oracle intasata": i due core sono occupati dai registratori della
+// pipeline poly e Guacamole diventa inservibile pur restando raggiungibile.
+// Con un timeout unico e generoso quel caso passava la sonda e mi ritrovavo
+// sul gateway sbagliato. Quindi:
+//   FAST - chi non serve un'immagine da 64px in 2s non e' sano: lo scarto
+//          e passo alla riserva.
+//   SLOW - se PERO' nessuno dei due passa in 2s, e' molto piu' probabile che
+//          sia lenta la mia connessione (mobile, roaming) che entrambi i
+//          gateway giu'. Allora ri-sondo con pazienza: meglio un gateway
+//          lento che una pagina che dice "nessun gateway".
+var FAST = 2000;
+var SLOW = 8000;
 var GRACE = 3000;                    // attesa prima del redirect, per poter annullare
 
 var listEl = document.getElementById("list");
 var footEl = document.getElementById("foot");
 var cancelled = false, redirected = false;
 
-TARGETS.forEach(function (t, i) {
+TARGETS.forEach(function (t) {
   var a = document.createElement("a");
   a.className = "card";
   a.href = t.url;
@@ -89,28 +102,39 @@ TARGETS.forEach(function (t, i) {
   a.querySelector(".name").textContent = t.name;
   a.querySelector(".host").textContent = t.url.replace(/^https:\/\//, "");
   listEl.appendChild(a);
-  t.el = a;
   t.badge = a.querySelector(".badge");
 });
 
-// Sonda: carico un'immagine dal gateway. Se si carica, il servizio risponde.
+function setBadge(t, cls, text) {
+  t.badge.className = "badge " + cls;
+  t.badge.textContent = text;
+}
+
+// Sonda: carico un'immagine dal gateway. Se si carica entro 'limit', risponde.
 // Uso Image invece di fetch per non dipendere dagli header CORS.
-function probe(t) {
+// 'patient' distingue il secondo giro, dove un OK va etichettato come lento.
+function probe(t, limit, patient) {
   return new Promise(function (resolve) {
     var img = new Image();
     var done = false;
+    var t0 = Date.now();
     function settle(ok) {
       if (done) return;
       done = true;
       img.onload = img.onerror = null;
       t.up = ok;
-      t.badge.className = "badge " + (ok ? "b-ok" : "b-bad");
-      t.badge.textContent = ok ? "raggiungibile" : "non risponde";
+      t.ms = Date.now() - t0;
+      if (ok) {
+        setBadge(t, patient ? "b-wait" : "b-ok",
+                 patient ? "lento (" + (t.ms / 1000).toFixed(1) + "s)" : "raggiungibile");
+      } else {
+        setBadge(t, "b-bad", patient ? "non risponde" : "troppo lento");
+      }
       resolve(ok);
     }
-    img.onload = function () { settle(true); };
+    img.onload  = function () { settle(true);  };
     img.onerror = function () { settle(false); };
-    setTimeout(function () { settle(false); }, TIMEOUT);
+    setTimeout(function () { settle(false); }, limit);
     img.src = t.url + PROBE + "?t=" + Date.now();
   });
 }
@@ -123,23 +147,16 @@ function go(t) {
   location.replace(t.url);
 }
 
-Promise.all(TARGETS.map(probe)).then(function () {
-  var target = TARGETS.find(function (t) { return t.up; });
-
-  if (!target) {
-    footEl.textContent = "Nessun gateway raggiungibile. Controlla la connessione, oppure prova a cliccare comunque un indirizzo.";
-    return;
-  }
-
-  var others = TARGETS.filter(function (t) { return t !== target && t.up; }).length;
+// Conto alla rovescia annullabile, poi redirect.
+function countdown(target, note) {
   var secs = Math.round(GRACE / 1000);
+  function tail(n) { return " tra " + n + "s" + (note ? " " + note : "") + " "; }
 
   footEl.innerHTML = "";
-  footEl.append(
-    "Apro ",
-    Object.assign(document.createElement("b"), { textContent: target.name }),
-    " tra " + secs + "s" + (others ? " (anche l'altro è disponibile)" : "") + " "
-  );
+  var nameEl = Object.assign(document.createElement("b"), { textContent: target.name });
+  var tailEl = document.createTextNode(tail(secs));
+  footEl.append("Apro ", nameEl, tailEl);
+
   var btn = document.createElement("button");
   btn.textContent = "annulla";
   btn.onclick = function () {
@@ -153,9 +170,34 @@ Promise.all(TARGETS.map(probe)).then(function () {
     if (cancelled || redirected) { clearInterval(tick); return; }
     var left = Math.ceil((GRACE - (Date.now() - t0)) / 1000);
     if (left <= 0) { clearInterval(tick); go(target); return; }
-    footEl.firstChild.nextSibling.nextSibling.textContent =
-      " tra " + left + "s" + (others ? " (anche l'altro è disponibile)" : "") + " ";
+    tailEl.textContent = tail(left);
   }, 250);
+}
+
+function first() { return TARGETS.find(function (t) { return t.up; }); }
+
+// Giro 1: veloce. Chi passa e' sano, e vince il primo in ordine di preferenza.
+Promise.all(TARGETS.map(function (t) { return probe(t, FAST, false); })).then(function () {
+  var target = first();
+  if (target) {
+    var others = TARGETS.filter(function (t) { return t !== target && t.up; }).length;
+    countdown(target, others ? "(anche l'altro è disponibile)" : "");
+    return;
+  }
+
+  // Giro 2: paziente. Nessuno era pronto in 2s - probabile che sia lenta la
+  // connessione da cui sto guardando, non i gateway.
+  footEl.textContent = "Nessuno dei due risponde in " + (FAST / 1000) + "s. Riprovo con più pazienza…";
+  TARGETS.forEach(function (t) { setBadge(t, "b-wait", "riprovo…"); });
+
+  Promise.all(TARGETS.map(function (t) { return probe(t, SLOW, true); })).then(function () {
+    var slow = first();
+    if (!slow) {
+      footEl.textContent = "Nessun gateway raggiungibile. Controlla la connessione, oppure prova a cliccare comunque un indirizzo.";
+      return;
+    }
+    countdown(slow, "(risponde, ma lento)");
+  });
 });
 </script>
 </body>
