@@ -65,10 +65,15 @@
 // I due gateway, in ordine di preferenza.
 // Oracle e' PRIMO: sta fuori casa, quindi risponde anche se qui manca corrente
 // o linea - ed e' proprio quello il caso in cui serve entrare da remoto.
-// Casa (hacasa) e' la riserva: CPU tutta sua, ma cade insieme alla casa.
+//
+// La riserva dal 01/09/2026 gira su PORTCASA, non piu' su hacasa-server.
+// L'hostname resta 'hacasa-guac' e NON e' un errore: il nodo Tailscale e' la
+// VM, non la macchina che la ospita, quindi spostando il disco si e' spostato
+// anche il Funnel. Rinominarlo costerebbe un certificato nuovo e una modifica
+// qui, per zero guadagno.
 var TARGETS = [
-  { name: "Oracle Cloud",  url: "https://oracle-bridge.tail0e7ff3.ts.net" },
-  { name: "Casa (hacasa)", url: "https://hacasa-guac.tail0e7ff3.ts.net"  }
+  { name: "Oracle Cloud", url: "https://oracle-bridge.tail0e7ff3.ts.net" },
+  { name: "Portcasa",     url: "https://hacasa-guac.tail0e7ff3.ts.net"  }
 ];
 var PROBE = "/images/logo-64.png";   // risorsa statica di Guacamole, risponde 200
 
