@@ -59,6 +59,13 @@
   <p class="sub">Verifico quale gateway risponde e ti porto su quello.</p>
   <div id="list"></div>
   <div class="foot" id="foot">Controllo in corso…</div>
+  <!-- Agent Zero (Oracle, 01/11/2026): fuori da TARGETS di proposito. Non e' un
+       gateway di riserva, quindi niente sonda e niente redirect automatico.
+       Solo tailnet: il link funziona solo da un dispositivo con Tailscale acceso. -->
+  <a class="card" href="http://100.70.18.27:5080" rel="noreferrer" style="margin-top:14px">
+    <div class="info"><div class="name">Agent Zero</div><div class="host">100.70.18.27:5080 (Oracle)</div></div>
+    <span class="badge b-wait">solo Tailscale</span>
+  </a>
 </div>
 
 <script>
