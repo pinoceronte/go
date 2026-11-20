@@ -57,38 +57,13 @@
 <div class="wrap">
   <h1>Accesso remoto</h1>
   <p class="sub">Verifico quale gateway risponde e ti porto su quello.</p>
-  <!-- Agent Zero (Oracle, 01/11/2026): fuori da TARGETS di proposito. Non e' un
-       gateway di riserva, quindi niente sonda e niente redirect automatico.
-       Dal 01/11/2026 e' pubblico via Tailscale Funnel sulla 8443 (la 443 resta di
-       Guacamole); la barriera e' il login di Agent Zero con password lunga. -->
-  <a class="card" href="https://oracle-bridge.tail0e7ff3.ts.net:8443" rel="noreferrer">
-    <div class="info"><div class="name">Agent Zero</div><div class="host">oracle-bridge.tail0e7ff3.ts.net:8443</div></div>
-    <span class="badge b-wait">con login</span>
-  </a>
   <div id="list"></div>
   <div class="foot" id="foot">Controllo in corso…</div>
 </div>
 
 <script>
-// I due gateway, in ordine di preferenza. PORTCASA e' il PRIMARIO dal
-// 01/09/2026, per decisione di Piero.
-//
-// Perche' portcasa prima: 8 core i7 e 32 GB tutti suoi, ed e' la macchina a
-// cui Piero accede normalmente da fuori. Oracle ha 2 soli core condivisi con
-// gli undici registratori della pipeline poly e sotto carico il suo Guacamole
-// diventa inservibile (misurato il 01/09).
-//
-// Il contro, che resta vero: Oracle sta fuori casa, quindi risponde anche
-// quando a casa manca corrente o linea. E' per questo che resta la riserva e
-// non e' stato tolto: la sonda a due soglie qui sotto scarta portcasa in 2
-// secondi e passa a Oracle da sola.
-//
-// L'hostname 'hacasa-guac' NON e' un errore anche se la VM vive su portcasa:
-// il nodo Tailscale e' la VM, non la macchina che la ospita, quindi spostando
-// il disco si e' spostato anche il Funnel. Rinominarlo vuol dire nuovo
-// certificato e nuova modifica qui.
+// Unico gateway: Oracle (dal 2026-11-20 Portcasa e Agent Zero non sono piu' in elenco).
 var TARGETS = [
-  { name: "Portcasa",     url: "https://hacasa-guac.tail0e7ff3.ts.net"  },
   { name: "Oracle Cloud", url: "https://oracle-bridge.tail0e7ff3.ts.net" }
 ];
 var PROBE = "/images/logo-64.png";   // risorsa statica di Guacamole, risponde 200
@@ -170,7 +145,7 @@ function go(t) {
 
 // Conto alla rovescia annullabile, poi redirect.
 function countdown(target, note) {
-  // ?agent nell'indirizzo: resto sulla pagina, cosi' posso aprire Agent Zero.
+  // ?agent nell'indirizzo: resto sulla pagina senza redirect automatico.
   if (/[?&]agent/.test(location.search)) { footEl.textContent = "Redirect automatico disattivato (?agent). Scegli tu l'indirizzo."; return; }
   var secs = Math.round(GRACE / 1000);
   function tail(n) { return " tra " + n + "s" + (note ? " " + note : "") + " "; }
