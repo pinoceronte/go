@@ -80,7 +80,7 @@ var PROBE = "/images/logo-64.png";   // risorsa statica di Guacamole, risponde 2
 //          gateway giu'. Allora ri-sondo con pazienza: meglio un gateway
 //          lento che una pagina che dice "nessun gateway".
 var FAST = 2000;
-var SLOW = 8000;
+var SLOW = 15000;
 var GRACE = 3000;                    // attesa prima del redirect, per poter annullare
 
 var listEl = document.getElementById("list");
@@ -190,6 +190,11 @@ Promise.all(TARGETS.map(function (t) { return probe(t, FAST, false); })).then(fu
 
   Promise.all(TARGETS.map(function (t) { return probe(t, SLOW, true); })).then(function () {
     var slow = first();
+    if (!slow && TARGETS.length === 1) {
+      // Un solo gateway: la sonda non serve a scegliere, quindi apro comunque.
+      countdown(TARGETS[0], "(la verifica non risponde, provo comunque)");
+      return;
+    }
     if (!slow) {
       footEl.textContent = "Nessun gateway raggiungibile. Controlla la connessione, oppure prova a cliccare comunque un indirizzo.";
       return;
